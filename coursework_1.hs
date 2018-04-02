@@ -242,7 +242,7 @@ travel m (Won)         = []
 travel m (Game n p ps) = options
     where
       ns      = travel' m [] [(n, [])]
-      options = [((Game y p ps), if ys == [] then do "Stay In "
+      options = [((Game y p ps), if ys == [] then do "\nStay In "
         ++ locations !! y
         ++ " " ++ concat (choices ys) else do "\nTravel to "
         ++ locations !! y
@@ -261,7 +261,7 @@ contains (x:xs) ys
    | x `elem` ys = contains xs ys
    | otherwise   = False
 
-act :: Game -> [(Game,String)]
+act :: Game -> [(Game, String)]
 act Won           = []
 act (Game n p ps) = options
     where
@@ -282,49 +282,26 @@ suitable (Game n p ps) e = choose
       choose = check game
           where
             check (Won)         = True
-            check (Game m q qs) = if qs /= ps || q /= p then do True else do False
+            check (Game m q qs) = if length q > length p || length (concat qs) > length (concat characters) then do True else do False
 
 solve :: IO ()
 solve = do
-  putStrLn(solveLoop (start, ""))
+  putStr(solveLoop (start, ""))
     where
       solveLoop :: (Game,String) -> String
       solveLoop (Won, s)             = s
-      solveLoop ((Game n p ps), str) = fs
+      solveLoop ((Game n p ps), str) = concat [s | (_, s)<-fs]
             where
-              rs = travel theMap (Game n p ps)
-              fs = aux [(act g, (str ++ s)) | (g, s)<-rs]
+              rs = routes (travel theMap (Game n p ps)) str
+              fs = routeAct (concat (drop n rs))
+                where
+                  routeAct []     = []
+                  routeAct (x:xs) = solveLoop x : routeAct xs
 
-              --ds = [(g, (s ++ st)) | ([(g, s)], st)<-fs]
-              --route = fs
-                  where
-                    aux :: [([(Game, String)], String)] -> String
-                    aux [] = []
-                    aux (([], _):gs)   = aux gs
-                    aux (([(g,s)],st):gs)
-                      | checkg g == True = s ++ st
-                      | otherwise = (solveLoop (g, (s ++ st)))
-                      
---S([(Game, String)], String)
-checkg :: Game -> Bool
-checkg Won           = True
-checkg (Game n p ps) = False
-              --route = ds
-              --  where
-              --     getStrin []      = []
-              --     getStrin ((g, s):ds) = s ++ getStrin ds
-              --fs = [(act g, s) | (g, s)<-rs]
-              --ds = concat [[(g, st ++ s)] | ([(g, s)] , st)<-fs]
-              --route = concat (getStrin ds)
-              --   where
-              --     getStrin []      = []
-              --     getString ((g, s):ds) = s ++ getStrin ds
-              --ls = [solveLoop (g, s) | (g, s)<-ds]
-              --route = concat ls
+routes :: [(Game,String)] -> String -> [[(Game,String)]]
+routes [] _            = []
+routes ((g, s):xs) str = [(ga, (str ++ s ++ st)) | (ga, st)<-act g] : routes xs str
 
-solvedRoute :: [(Game,String)] -> String
-solvedRoute [] = []
-solvedRoute xs = concat [ y | (x, y)<-xs]
 
 ------------------------- Game data
 
