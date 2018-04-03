@@ -1,6 +1,3 @@
-import Data.List
-
--------------------------
 
 merge :: Ord a => [a] -> [a] -> [a]
 merge xs [] = xs
@@ -170,6 +167,7 @@ game = loop start
 
 ------------------------- PART 4: Solving the game
 
+-- Function used to accumulate choices made
 addNumOfChoices :: Int -> [(Event,[Int])] -> [(Event,[Int])]
 addNumOfChoices _ [] = []
 addNumOfChoices n xs = [(e, n:ys) | (e, ys)<-xs]
@@ -190,7 +188,7 @@ talk :: Dialogue -> [(Event, String)]
 talk d = spoke
     where
       ns    = talk' d
-      spoke = [(e, "\nIn the dialogue, choose " ++ concat (choices xs)) | (e, xs)<-ns]
+      spoke = [(e, if length xs == 0 then do "" else do "\nIn the dialogue, choose " ++ concat (choices xs)) | (e, xs)<-ns]
           where
             choices :: [Int] -> [String]
             choices []     = []
@@ -242,20 +240,17 @@ travel m (Won)         = []
 travel m (Game n p ps) = options
     where
       ns      = travel' m [] [(n, [])]
-      options = [((Game y p ps), if ys == [] then do "\nStay In "
-        ++ locations !! y
-        ++ " " ++ concat (choices ys) else do "\nTravel to "
+      options = [((Game y p ps), if length ys == 0 then do "\nStay In "
+        ++ locations !! y else do "\nTravel to "
         ++ locations !! y
         ++ ": " ++ concat (choices ys)) | (y, ys)<-ns]
           where
             choices :: [Int] -> [String]
             choices []     = []
             choices (x:xs) = (show x ++ " ") : choices xs
-
 -------------------------
 
 contains :: Party -> Party -> Bool
-contains [] []   = False
 contains [] ys   = True
 contains (x:xs) ys
    | x `elem` ys = contains xs ys
@@ -265,14 +260,26 @@ act :: Game -> [(Game, String)]
 act Won           = []
 act (Game n p ps) = options
     where
-      ns      = [(zs, talk d) | (zs, d)<-dialogues, contains zs (ps !! n) || contains zs p]
+      ns      = [(zs, talk d) | (zs, d)<-dialogues, contains zs (p ++ (ps !! n))]
       options = f ns
         where
           f []           = []
-          f ((ds, t):ts) = [(e (Game n p ps), "Talk to " ++ (lts ds) ++ s) | (e, s)<-t, suitable (Game n p ps) e] ++ f ts
+          f ((ds, t):ts) = [(e (Game n p ps), "Talk to " ++ (lts  (addAnd ds)) ++ s) | (e, s)<-t, suitable (Game n p ps) e] ++ f ts
               where
                 lts []       = []
-                lts (d:ds)   = d ++ lts ds
+                lts (d:ds)   =  (d ++ " ") ++ lts ds
+
+-- Function used for formatting reasons for the solve function
+addAnd :: [String] -> [String]
+addAnd [] = []
+addAnd xs = if length xs > 1 then do added else do xs
+   where
+     (ns, f) = splitAt (length xs - 1) xs
+     added = (if length ns > 1 then do (commas ns) else do ns) ++ ["and"] ++ f
+         where
+           commas :: [String] -> [String]
+           commas [] = []
+           commas (x:xs) = (x ++ ",") : commas xs
 
 suitable :: Game -> Event -> Bool
 suitable (Won) e         = True
@@ -281,27 +288,52 @@ suitable (Game n p ps) e = choose
       game   = e (Game n p ps)
       choose = check game
           where
-            check (Won)         = True
-            check (Game m q qs) = if length q > length p || length (concat qs) > length (concat characters) then do True else do False
+            check (Won)                   = True
+            check (Game m q qs)
+              | length q > length p       = True
+              | (length (minus q p)) > 0  = True
+              | length (msort ((concat characters) ++ (concat qs) ++ p ++ q)) > length (msort ((concat characters) ++ (concat ps) ++ p ++ q)) = True
+              | otherwise                 = False
 
 solve :: IO ()
 solve = do
-  putStr(solveLoop (start, ""))
+  putStrLn(solveLoop (start, ""))
     where
       solveLoop :: (Game,String) -> String
-      solveLoop (Won, s)             = s
-      solveLoop ((Game n p ps), str) = concat [s | (_, s)<-fs]
+      solveLoop (Won, s)            = s
+      solveLoop ((Game n p ps), st) = route
             where
-              rs = routes (travel theMap (Game n p ps)) str
-              fs = routeAct (concat (drop n rs))
-                where
-                  routeAct []     = []
-                  routeAct (x:xs) = solveLoop x : routeAct xs
+              gs     = (travel theMap (Game n p ps))
+              rs     = concat (routes gs)
+              (g,s)  =  (rs !! 0)
+              i      = getIndexFS 0 (getNode g) (listNodes gs)
+              (_,ss) = (gs !! i)
+              str    =  st ++ ss ++ "\n" ++ s
+              route  = solveLoop (g, str)
 
-routes :: [(Game,String)] -> String -> [[(Game,String)]]
-routes [] _            = []
-routes ((g, s):xs) str = [(ga, (str ++ s ++ st)) | (ga, st)<-act g] : routes xs str
+-- Gets index For Solve
+getIndexFS :: Int -> Int -> [Int] -> Int
+getIndexFS _ _ [] = 0
+getIndexFS x y (z:zs)
+   | y == z    = x
+   | otherwise = getIndexFS (x + 1) y zs
 
+-- Gets the node of the Game
+getNode :: Game -> Node
+getNode Won = (-1)
+getNode (Game n p ps) = n
+
+-- Returns a list of nodes
+listNodes :: [(Game,String)] -> [Node]
+listNodes []       = []
+listNodes ((g,s):gs) = checkGame g : listNodes gs
+    where
+      checkGame Won           = (-1)
+      checkGame (Game n p ps) = n
+
+routes :: [(Game,String)] -> [[(Game,String)]]
+routes []          = []
+routes ((g, s):xs) = act g : routes xs
 
 ------------------------- Game data
 
