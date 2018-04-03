@@ -308,8 +308,7 @@ solve = do
               (g,s)  =  (rs !! 0)
               i      = getIndexFS 0 (getNode g) (listNodes gs)
               (_,ss) = (gs !! i)
-              str    =  st ++ ss ++ "\n" ++ s
-              route  = solveLoop (g, str)
+              route  = solveLoop (g, (st ++ ss ++ "\n" ++ s))
 
 -- Gets index For Solve
 getIndexFS :: Int -> Int -> [Int] -> Int
